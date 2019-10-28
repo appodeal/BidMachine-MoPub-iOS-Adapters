@@ -7,8 +7,12 @@
 //
 
 #import "AppDelegate.h"
+#import "BidMachineFetcher.h"
 #import "BidMachineInstanceMediationSettings.h"
+#import "BidMachineAdapterConfiguration.h"
+
 #import <mopub-ios-sdk/MoPub.h>
+#import <BidMachine/BidMachine.h>
 
 
 @interface AppDelegate ()
@@ -19,27 +23,49 @@
 
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
-    // You can use test ad unit id - 1832ce06de91424f8f81f9f5c77f7efd - for application initialization.
-//    MPMoPubConfiguration *sdkConfig = [[MPMoPubConfiguration alloc] initWithAdUnitIdForAppInitialization:@"1832ce06de91424f8f81f9f5c77f7efd"];
-    MPMoPubConfiguration *sdkConfig = [[MPMoPubConfiguration alloc] initWithAdUnitIdForAppInitialization:@"YOUR_AD_UNIT_ID"];
-    [sdkConfig setNetworkConfiguration:self.bidMachineConfiguration forMediationAdapter:@"BidMachineAdapterConfiguration"];
-    sdkConfig.additionalNetworks = @[ NSClassFromString(@"BidMachineAdapterConfiguration") ];
-    sdkConfig.loggingLevel = MPBLogLevelDebug;
-    
-    [[MoPub sharedInstance] initializeSdkWithConfiguration:sdkConfig completion:^{
-        NSLog(@"SDK initialization complete");
+    [self configureBidMachinePricefloorRounding];
+    __weak typeof(self) weakSelf = self;
+    [self startBidMachine:^{
+        [weakSelf startMoPub];
     }];
     
     return YES;
 }
 
-- (NSDictionary <NSString *, id> *)bidMachineConfiguration {
-    return @{
-             @"seller_id" : @"5",
-             @"test_mode" : @"true",
-             @"logging_enabled" : @"true",
-             @"endpoint" : @"https://api.appodealx.com"
-             };
+/**
+ Setup bm_pf format and roundin mode
+ */
+- (void)configureBidMachinePricefloorRounding {
+    BidMachineFetcher.sharedFetcher.roundingMode = NSNumberFormatterRoundDown;
+    // Formats described in https://unicode.org/reports/tr35/tr35-10.html#Number_Format_Patterns
+    BidMachineFetcher.sharedFetcher.format = @"0.00";
+}
+
+/**
+ Start BidMachine session, should be called before MoPub initialisation
+ */
+- (void)startBidMachine:(void(^)(void))completion {
+    BDMSdkConfiguration *config = [BDMSdkConfiguration new];
+    config.testMode = YES;
+    
+    [BDMSdk.sharedSdk startSessionWithSellerID:@"1"
+                                 configuration:config
+                                    completion:completion];
+}
+
+/**
+ Start MoPub SDK
+ */
+- (void)startMoPub {
+    MPMoPubConfiguration *sdkConfig = [[MPMoPubConfiguration alloc] initWithAdUnitIdForAppInitialization:@"1832ce06de91424f8f81f9f5c77f7efd"];
+    sdkConfig.loggingLevel = MPBLogLevelDebug;
+    // Note that BidMachineAdapter should be added as additional network as BidMachineAdapterConfiguration
+    sdkConfig.additionalNetworks = @[ BidMachineAdapterConfiguration.class ];
+    
+    [MoPub.sharedInstance initializeSdkWithConfiguration:sdkConfig
+                                              completion:^{
+                                                  NSLog(@"SDK initialization complete");
+                                              }];
 }
 
 @end
